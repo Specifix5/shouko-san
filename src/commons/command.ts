@@ -119,8 +119,7 @@ export class ShoukoHybridCommand {
     if (this.isInteraction(this.context)) {
       const option = this?.options != null ? (this.options as CommandInteractionOptionResolver<CacheType>).get(name) : null;
       if (!option) return null;
-
-      // TODO: CHANNEL ARGS
+      
       // Type checking based on ApplicationCommandOptionType
       switch (option.type) {
         case ApplicationCommandOptionType.User:
@@ -129,6 +128,10 @@ export class ShoukoHybridCommand {
           return option.value as T; // boolean
         case ApplicationCommandOptionType.String:
           return option.value as T; // string
+        case ApplicationCommandOptionType.Channel:
+          return option.channel as T;
+        case ApplicationCommandOptionType.Subcommand:
+          return option.name as T;
         default:
           return null;
       }
@@ -225,27 +228,35 @@ const parseMessageArgs = (client: Client, args: string[], commandOptions: Applic
       // Parse and store the argument based on the type defined in the command options
       switch (option.type) {
         case ApplicationCommandOptionType.User:
-          if (!arg) {
-            options[option.name] = null;
-            break;
+          {
+            if (!arg) {
+              options[option.name] = null;
+              break;
+            }
+            const userId = arg.replace(/([^0-9]+)/g, "");
+            const isValid = /^[0-9]+$/.test(userId);
+            options[option.name] = isValid
+              ? (client.users.cache.get(userId) ?? client.users.fetch(userId))
+              : null;
           }
-          let userId = arg.replace(/([^0-9]+)/g, "");
-          options[option.name] = client.users.cache.get(userId) || client.users.fetch(userId); // Example parse function
-          break;
-        case ApplicationCommandOptionType.Boolean:
-          options[option.name] = arg ? arg.toLowerCase() === 'true' : false;
-          break;
-        case ApplicationCommandOptionType.String:
-          options[option.name] = arg || null;
           break;
         case ApplicationCommandOptionType.Channel:
-          options[option.name] = arg;
+          const channelId = arg.replace(/([^0-9]+)/g, "");
+          const isValid = /^[0-9]+$/.test(channelId);
+          options[option.name] = isValid
+            ? (client.channels.cache.get(channelId) ?? client.channels.fetch(channelId))
+            : null;
+        case ApplicationCommandOptionType.Boolean:
+          options[option.name] = arg ? arg.toLowerCase() === "true" : false;
+          break;
+        case ApplicationCommandOptionType.String:
+          options[option.name] = arg ?? null;
           break;
         case ApplicationCommandOptionType.Subcommand:
-          options[option.name] = arg;
+          options[option.name] = arg && arg.toLowerCase() === option.name ? true : null;
           break;
         default:
-          options[option.name] = null; // Handle other types as needed
+          options[option.name] = null;
           break;
       }
     });
